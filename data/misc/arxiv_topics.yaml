@@ -1,0 +1,25 @@
+topics:
+  - name: Computer Science
+    prefixes: ["cs"]
+    description: Covers all aspects of computing, including algorithms, machine learning, systems, networking, and human-computer interaction.
+  - name: Economics
+    prefixes: ["econ"]
+    description: Encompasses theoretical, empirical, and methodological research in econometrics, general, and theoretical economics.
+  - name: Electrical Engineering and Systems Science
+    prefixes: ["eess"]
+    description: Focuses on signal processing, control systems, image/audio processing, and their applications in engineering.
+  - name: Mathematics
+    prefixes: ["math"]
+    description: Spans pure and applied mathematics, including algebra, geometry, analysis, number theory, and mathematical physics.
+  - name: Physics
+    prefixes: ["astro-ph", "cond-mat", "gr-qc", "hep-ex", "hep-lat", "hep-ph", "hep-th", "math-ph", "nlin.AO", "nucl-ex", "nucl-th", "physics", "quant-ph"]
+    description: Includes subfields like astrophysics, condensed matter, high-energy physics, and quantum mechanics, with both theoretical and experimental research.
+  - name: Quantitative Biology
+    prefixes: ["q-bio"]
+    description: Applies quantitative techniques to biological systems, covering areas like genomics, neuroscience, and systems biology.
+  - name: Quantitative Finance
+    prefixes: ["q-fin"]
+    description: Investigates mathematical modeling and data-driven approaches in finance, such as risk management, trading, and econometrics.
+  - name: Statistics
+    prefixes: ["stat"]
+    description: Covers theoretical, applied, and computational statistics, including methodology, inference, and machine learning intersections.

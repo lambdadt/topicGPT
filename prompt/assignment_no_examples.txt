@@ -1,0 +1,13 @@
+You will receive a document and a topic hierarchy. Assign the document to the most relevant topics the hierarchy. Then, output the topic labels, assignment reasoning and supporting quotes from the document. DO NOT make up new topics or quotes.  
+
+[Topic Hierarchy]
+{tree}
+
+[Document]
+{Document}
+
+Double check that your assignment exists in the hierarchy!
+Your response should be in the following format:
+[Topic Level] Topic Label: Assignment reasoning (Supporting quote)
+
+Your response:

@@ -6,6 +6,9 @@ import pandas as pd
 from anytree import Node
 import traceback
 import subprocess
+from typing import Optional, List
+from io import BytesIO
+import base64
 
 from openai import OpenAI, AzureOpenAI
 import tiktoken
@@ -21,6 +24,7 @@ from vertexai.generative_models import (
 from anthropic import AnthropicVertex
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from PIL import Image
 
 from sklearn import metrics
 import numpy as np
@@ -127,6 +131,7 @@ class APIClient:
         prompt: str,
         max_tokens: int,
         temperature: float,
+        images: Optional[List[Image]] = None,
         top_p: float = 1.0,  # default value for top_p in openai
         system_message: str = "You are a helpful assistant.",
         num_try: int = 3,
@@ -152,6 +157,15 @@ class APIClient:
             {"role": "system", "content": system_message},
             {"role": "user", "content": prompt},
         ]
+
+        # Vision
+        if images:
+            for img in images:
+                img_url = self.__image_to_base64_url(img)
+                message.append({
+                    'type': 'image_url',
+                    'image_url': img_url,
+                })
 
         for attempt in range(num_try):
             try:
@@ -345,6 +359,11 @@ class APIClient:
         outputs = self.llm.generate(final_prompts, sampling_params)
         return [output.outputs[0].text for output in outputs]
 
+    def __image_to_base64_url(self, image: Image):
+        buf = BytesIO()
+        image.save(buf, format='PNG')
+        img_bytes = base64.b64encode(buf.getvalue())
+        return "data:image/png;base64," + img_bytes.decode('ASCII')
 
 class TopicTree:
     """

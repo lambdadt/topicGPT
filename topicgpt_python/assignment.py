@@ -1,4 +1,6 @@
 import pandas as pd
+from PIL import Image
+
 from topicgpt_python.utils import *
 
 import openai
@@ -9,6 +11,7 @@ import random
 from sentence_transformers import SentenceTransformer, util
 import argparse
 import os
+from typing import List, Optional
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 sbert = SentenceTransformer("all-MiniLM-L6-v2")
@@ -24,6 +27,7 @@ def assignment(
     top_p,
     max_tokens,
     verbose,
+    images: Optional[List[Image]] = None,
 ):
     """
     Return documents with topics assigned to them
@@ -88,8 +92,9 @@ def assignment(
 
         try:
             prompt = assignment_prompt.format(Document=doc, tree=seed_str)
+            print("Prompt: {}".format(prompt))
             response = api_client.iterative_prompt(
-                prompt, max_tokens, temperature, top_p=top_p, verbose=verbose
+                prompt, max_tokens, temperature, top_p=top_p, verbose=verbose, images=images
             )
             res.append(response)
         except Exception as e:

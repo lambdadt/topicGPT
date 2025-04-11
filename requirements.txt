@@ -15,3 +15,5 @@ anthropic>=0.39.0,<1.0.0
 pyyaml
 google
 google-generativeai
+
+pypdfium2 >= 4.30.1
