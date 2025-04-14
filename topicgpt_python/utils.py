@@ -155,17 +155,34 @@ class APIClient:
         # Formatting prompt
         message = [
             {"role": "system", "content": system_message},
-            {"role": "user", "content": prompt},
         ]
 
         # Vision
         if images:
+            # https://ollama.com/library/llama3.2-vision:11b
+            #img_b64_list = []
+            #for img in images:
+            #    img_b64_list.append(self.__image_to_base64_url(img, append_url_part=True))
+            #message.append({
+            #    "role": "user",
+            #    "content": prompt,
+            #    "images": img_b64_list,
+            #})
+            # https://github.com/ollama/ollama/blob/main/docs/openai.md
+            msg_content = [
+                {'type': 'text', 'text': prompt},
+            ]
             for img in images:
                 img_url = self.__image_to_base64_url(img)
-                message.append({
-                    'type': 'image_url',
-                    'image_url': img_url,
+                msg_content.append({
+                    'type': 'image_url', 'image_url': img_url,
                 })
+            message.append({
+                'role': 'user',
+                'content': msg_content,
+            })
+        else:
+            message.append({"role": "user", "content": prompt})
 
         for attempt in range(num_try):
             try:
@@ -359,11 +376,15 @@ class APIClient:
         outputs = self.llm.generate(final_prompts, sampling_params)
         return [output.outputs[0].text for output in outputs]
 
-    def __image_to_base64_url(self, image: Image):
+    def __image_to_base64_url(self, image: Image, append_url_part=True):
         buf = BytesIO()
         image.save(buf, format='PNG')
+        ret = ""
+        if append_url_part:
+            ret = "data:image/png;base64,"
         img_bytes = base64.b64encode(buf.getvalue())
-        return "data:image/png;base64," + img_bytes.decode('ASCII')
+        ret += img_bytes.decode('ASCII')
+        return ret
 
 class TopicTree:
     """

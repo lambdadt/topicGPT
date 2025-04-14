@@ -11,7 +11,7 @@ import random
 from sentence_transformers import SentenceTransformer, util
 import argparse
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 sbert = SentenceTransformer("all-MiniLM-L6-v2")
@@ -19,15 +19,16 @@ sbert = SentenceTransformer("all-MiniLM-L6-v2")
 
 def assignment(
     api_client,
-    topics_root,
-    docs,
+    topics_root: Union[TopicTree, str],
+    docs: List[Optional[str]],
     assignment_prompt,
     context_len,
     temperature,
     top_p,
     max_tokens,
     verbose,
-    images: Optional[List[Image]] = None,
+    images: Optional[List[List[Image]]] = None,
+    list_all_topic_candidates = False,
 ):
     """
     Return documents with topics assigned to them
@@ -46,57 +47,75 @@ def assignment(
     Returns:
     - res: list of responses
     """
-    tree_str = "\n".join(topics_root.to_topic_list(desc=True, count=False))
+    if isinstance(topics_root, TopicTree):
+        tree_str = "\n".join(topics_root.to_topic_list(desc=True, count=False))
+    else:
+        tree_str = topics_root
+    if verbose:
+        print(f"tree_str: {tree_str}")
     prompted_docs, res = [], []
 
     for i in trange(len(docs)):
         doc = docs[i]
-        cos_sim = {}
-        doc_emb = sbert.encode(doc, convert_to_tensor=True)
-
-        # Include only most relevant topics such that the total length
-        # of tree_str is less than max_top_len
-        if api_client.estimate_token_count(tree_str) > context_len:
-            for top in tree_str.split("\n"):
-                top_emb = sbert.encode(top, convert_to_tensor=True)
-                cos_sim[top] = util.cos_sim(top_emb, doc_emb)
-            top_top = sorted(cos_sim, key=cos_sim.get, reverse=True)
-
-            seed_len = 0
-            seed_str = ""
-            while seed_len < context_len and len(top_top) > 0:
-                new_seed = top_top.pop(0)
-                token_count = api_client.estimate_token_count(new_seed + "\n")
-                if seed_len + token_count > context_len:
-                    break
-                else:
-                    seed_str += new_seed + "\n"
-                    seed_len += (
-                        token_count  # Update only with the new topic's token count
-                    )
-
-        else:
+        
+        if list_all_topic_candidates:
             seed_str = tree_str
+        else:
+            cos_sim = {}
+            doc_emb = sbert.encode(doc, convert_to_tensor=True)
+
+            # Include only most relevant topics such that the total length
+            # of tree_str is less than max_top_len
+            if api_client.estimate_token_count(tree_str) > context_len:
+                for top in tree_str.split("\n"):
+                    top_emb = sbert.encode(top, convert_to_tensor=True)
+                    cos_sim[top] = util.cos_sim(top_emb, doc_emb)
+                top_top = sorted(cos_sim, key=cos_sim.get, reverse=True)
+
+                seed_len = 0
+                seed_str = ""
+                while seed_len < context_len and len(top_top) > 0:
+                    new_seed = top_top.pop(0)
+                    token_count = api_client.estimate_token_count(new_seed + "\n")
+                    if seed_len + token_count > context_len:
+                        break
+                    else:
+                        seed_str += new_seed + "\n"
+                        seed_len += (
+                            token_count  # Update only with the new topic's token count
+                        )
+
+            else:
+                seed_str = tree_str
+        #print(f"{seed_str=}")
 
         # Truncate document if too long
-        max_doc_len = (
-            context_len
-            - api_client.estimate_token_count(assignment_prompt)
-            - api_client.estimate_token_count(seed_str)
-        )
-        if api_client.estimate_token_count(doc) > max_doc_len:
-            print(
-                f"Truncating document from {api_client.estimate_token_count(doc)} to {max_doc_len}"
+        if doc is not None:
+            max_doc_len = (
+                context_len
+                - api_client.estimate_token_count(assignment_prompt)
+                - api_client.estimate_token_count(seed_str)
             )
-            doc = api_client.truncating(doc, max_doc_len)
+            if api_client.estimate_token_count(doc) > max_doc_len:
+                print(
+                    f"Truncating document from {api_client.estimate_token_count(doc)} to {max_doc_len}"
+                )
+                doc = api_client.truncating(doc, max_doc_len)
 
         try:
-            prompt = assignment_prompt.format(Document=doc, tree=seed_str)
-            print("Prompt: {}".format(prompt))
+            if doc is not None:
+                prompt = assignment_prompt.format(Document=doc, tree=seed_str)
+            else:
+                prompt = assignment_prompt.format(tree=seed_str)
+
+            if verbose:
+                print("Prompt: {}".format(prompt))
             response = api_client.iterative_prompt(
-                prompt, max_tokens, temperature, top_p=top_p, verbose=verbose, images=images
+                prompt, max_tokens, temperature, top_p=top_p, verbose=verbose, images=images[i],
             )
             res.append(response)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             response = "Error"
             res.append("Error")
