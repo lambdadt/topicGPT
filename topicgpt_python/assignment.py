@@ -29,6 +29,7 @@ def assignment(
     verbose,
     images: Optional[List[List[Image]]] = None,
     list_all_topic_candidates = False,
+    return_prompts = False,
 ):
     """
     Return documents with topics assigned to them
@@ -53,7 +54,7 @@ def assignment(
         tree_str = topics_root
     if verbose:
         print(f"tree_str: {tree_str}")
-    prompted_docs, res = [], []
+    prompted_docs, res, prompts = [], [], []
 
     for i in trange(len(docs)):
         doc = docs[i]
@@ -102,6 +103,7 @@ def assignment(
                 )
                 doc = api_client.truncating(doc, max_doc_len)
 
+        prompt = None
         try:
             if doc is not None:
                 prompt = assignment_prompt.format(Document=doc, tree=seed_str)
@@ -125,7 +127,11 @@ def assignment(
             print(f"Response: {response}")
             print("--------------------")
         prompted_docs.append(doc)
-    return res, prompted_docs
+        prompts.append(prompt)
+    if return_prompts:
+        return res, prompted_docs, prompts
+    else:
+        return res, prompted_docs
 
 
 def assignment_batch(

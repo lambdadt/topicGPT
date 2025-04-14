@@ -18,24 +18,28 @@ import topicgpt_python.assignment
 
 
 def assign_topics():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--docs_metadata_csv', default="data_pdfs/docs_metadata.csv")
-    ap.add_argument('--arxiv_topic_file', default="output/generation_arxiv_1.md")
-    ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml")
-    ap.add_argument('--method', choices=['vlm', 'llm'], default='vlm')
-    ap.add_argument('--output_directory', '-o', required=True)
-    ap.add_argument('--backend', choices=['ollama', 'openai'], default='ollama')
-    ap.add_argument('--model', default='llama3.2-vision')
-    ap.add_argument('--page_selection_criterion', choices=['first', 'random'], default='first')
+    ap = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    ap.add_argument('--docs_metadata_csv', default="data_pdfs/docs_metadata.csv", help=".")
+    ap.add_argument('--arxiv_topic_file', default="output/generation_arxiv_1.md", help=".")
+    ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
+    ap.add_argument('--method', choices=['vlm', 'llm'], default='vlm', help=".")
+    ap.add_argument('--output_directory', '-o', required=True, help=".")
+    ap.add_argument('--backend', choices=['ollama', 'openai'], default='ollama', help=".")
+    ap.add_argument('--model', default='llama3.2-vision', help=".")
+    ap.add_argument('--page_selection_criterion', choices=['first', 'random'], default='first', help="If set to random, num_pages is ignored.")
     ap.add_argument('--num_pages', type=int, default=1,
         help="# pages to select")
     ap.add_argument('--max_page_percentage', default=80,
-        help="Maximum page (amonst all pages) % to select from (this is to minimize possibility of selecting from citations pages).")
-    ap.add_argument('--context', type=int, default=128_000)
-    ap.add_argument('--temperature', type=float, default=0.6)
-    ap.add_argument('--max_tokens', type=int, default=16_384)
-    ap.add_argument('--top_p', type=float, default=0.9)
-    ap.add_argument('--verbose', action='store_true')
+        help="Maximum page (amonst all pages) percentage to select from (this is to minimize possibility of selecting from citations pages).")
+    ap.add_argument('--context', type=int, default=128_000, help=".")
+    ap.add_argument('--temperature', type=float, default=0.6, help=".")
+    ap.add_argument('--max_tokens', type=int, default=16_384, help=".")
+    ap.add_argument('--top_p', type=float, default=0.9, help=".")
+    ap.add_argument('--shuffle_topics', action='store_true',
+    help="Shuffle topic order (by shuffling the lines of arxiv_topic_file) for every prompt.")
+    ap.add_argument('--continue_from_index', type=int, default=1,
+    help="Continue processing from this index (1-based). Based on docs_metadata_csv. Also see log to determine where the process was dropped off.")
+    ap.add_argument('--verbose', action='store_true', help=".")
     args = ap.parse_args()
 
     verbose = args.verbose
@@ -62,7 +66,6 @@ def assign_topics():
 
     print("Loading API client (backend: {}, model: {})".format(args.backend, args.model))
     api_client = APIClient(args.backend, args.model)
-    topic_root = TopicTree().from_topic_list(args.arxiv_topic_file, from_file=True)
 
     method = args.method
 
@@ -71,6 +74,11 @@ def assign_topics():
     context = args.context
     max_tokens = args.max_tokens
     context_len = context - max_tokens
+
+    shuffle_topics = args.shuffle_topics
+
+    individual_results_save_dir = output_dir / "result_jsons"
+    individual_results_save_dir.mkdir(exist_ok=True, parents=True)
 
     if method == 'vlm':
         prompt_path = Path("prompt/assignment_img_no_examples.txt")
@@ -83,10 +91,21 @@ def assign_topics():
         assignment_prompt = f.read()
     print("Assignment prompt:\n{}".format(assignment_prompt))
 
+    continue_from_idx = max(0, args.continue_from_index - 1)
+    print("Continuing from index: {} (/{})".format(continue_from_idx + 1, len(docs_meta_df)))
+
+    all_results = []
+    err_results = []
     for idoc in tqdm(range(len(docs_meta_df))):
+        if idoc < continue_from_idx:
+            continue
         row = docs_meta_df.iloc[idoc]
         doc_path = Path(row['filepath'])
-        print("Document [{}/{}] ({}): {}".format(idoc+1, len(docs_meta_df), doc_path, row))
+        print("\n" + (75 * "="))
+        print("Document [{}/{}] ({}): Title: {}; Topics: {} (#errs={})".format(idoc+1, len(docs_meta_df), doc_path,row['title'], row['topics'], len(err_results)))
+        topic_root = TopicTree().from_topic_list(args.arxiv_topic_file, from_file=True, shuffle_lines=shuffle_topics)
+
+        res_save_path = individual_results_save_dir / (Path(row['filepath']).stem + ".json")
         try:
             pdf_obj = pdfium.PdfDocument(str(doc_path))
             n_pages = len(pdf_obj)
@@ -121,7 +140,7 @@ def assign_topics():
                 else:
                     raise ValueError("Unknown method: {}".format(method))
             print("Assigning topic(s)...")
-            responses, prompted_docs = topicgpt_python.assignment.assignment(
+            responses, prompted_docs, cur_prompts = topicgpt_python.assignment.assignment(
                 api_client=api_client,
                 topics_root=topic_root,
                 docs=[doc],
@@ -133,8 +152,10 @@ def assign_topics():
                 verbose=verbose,
                 images=[images],
                 list_all_topic_candidates=True,
+                return_prompts=True,
             )
             response = responses[0]
+            cur_prompt = cur_prompts[0]
             if verbose:
                 print(f"Response: {response}")
             # Find topic assignments from response
@@ -144,22 +165,48 @@ def assign_topics():
                 if matches:
                     matched_topics.append(topic_name)
             print("Matched topics (#={}): {}".format(len(matched_topics), matched_topics))
-            breakpoint()
+            res = {
+                **row.to_dict(),
+                'prompt': cur_prompt,
+                'response': response,
+                'matched_topics': matched_topics,
+            }
+            with open(res_save_path, 'w', encoding='utf-8') as f:
+                json.dump(res, f, ensure_ascii=False, indent=2)
+            print("Saved results to: {}".format(res_save_path))
+            all_results.append(res)
         except KeyboardInterrupt:
             raise
         except Exception as e:
+            err_d = {
+                **row.to_dict(),
+                'error': str(e),
+            }
+            with open(res_save_path, 'w', encoding='utf-8') as f:
+                json.dump(err_d, f, ensure_ascii=False, indent=2)
+            err_results.append(err_d)
             traceback.print_exc()
             print("Failed to process document: {}".format(doc_path))
             print("Skipping")
+    all_results_save_path = output_dir / "all_results.json"
+    err_results_save_path = output_dir / "failed_results.json"
+    print("Saving results (#={}) to: {}".format(len(all_results), all_results_save_path))
+    with open(all_results_save_path, 'w', encoding='utf-8'):
+        json.dump(all_results, ensure_ascii=False, indent=2)
+    print("Saving err results (#={}) to: {}".format(len(err_results), err_results_save_path))
+    with open(err_results_save_path, 'w', encoding='utf-8') as f:
+        json.dump(err_results, ensure_ascii=False, indent=2)
+    print("Done")
 
 
 def generate_arxiv_topic_file():
     ap = argparse.ArgumentParser(description="""
     Topic file needed for topic tree generation (used by TopicGPT).
     See `data/output/sample/generation_1.md` and `data/output/sample/generation_2.md` for reference.
-    """)
-    ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml")
-    ap.add_argument('--output', '-o', default="output/generation_arxiv_1.md")
+    """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
+    ap.add_argument('--output', '-o', default="output/generation_arxiv_1.md", help=".")
     args = ap.parse_args()
 
     output_path = Path(args.output)
@@ -189,11 +236,22 @@ def create_docs_metadata_csv():
     ap = argparse.ArgumentParser(description="""
     Kaggle arXiv dataset: https://www.kaggle.com/datasets/Cornell-University/arxiv
     Extract metadata from JSONL for sampled pdfs (in sampled_pdfs_dir), and save as csv.
-    """)
-    ap.add_argument('--sampled_pdfs_dir', default="data_pdfs/pdfs/")
-    ap.add_argument('--kaggle_jsonl_path', default="data_pdfs/arxiv-metadata-oai-snapshot.json")
-    ap.add_argument('--output_path', default="data_pdfs/docs_metadata.csv")
+    """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    ap.add_argument('--sampled_pdfs_dir', default="data_pdfs/pdfs/", help="Where the sampled arXiv PDFs are stored. See <https://github.com/lambdadt/DocImageAnalysis>.")
+    ap.add_argument('--kaggle_jsonl_path', default="data_pdfs/arxiv-metadata-oai-snapshot.json", help="From Kaggle arXiv dataset: https://www.kaggle.com/datasets/Cornell-University/arxiv")
+    ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
+    ap.add_argument('--output_path', default="data_pdfs/docs_metadata.csv", help=".")
+    ap.add_argument('--strict_topic_extraction', action='store_true')
+    ap.add_argument('--verbose', action='store_true')
     args = ap.parse_args()
+
+    print("Reading arXiv topic YAML from: {}".format(args.arxiv_topics_yaml))
+    with open(args.arxiv_topics_yaml, encoding='utf-8') as f:
+        conf = yaml.safe_load(f)
+    prefix_to_topic = {}
+    for topic_d in conf['topics']:
+        for prefix in topic_d['prefixes']:
+            prefix_to_topic[prefix] = topic_d['name']
 
     print("Finding PDFs from: {}".format(args.sampled_pdfs_dir))
     sampled_pdfs = set()
@@ -207,11 +265,27 @@ def create_docs_metadata_csv():
     arxiv_meta_json_lines = arxiv_meta_json_str.split('\n')
 
     arxiv_meta_dicts = []
-    print("Parsing each line into JSON")
-    for line in tqdm(arxiv_meta_json_lines):
+    print("Parsing each line as JSON")
+    for iline, line in enumerate(tqdm(arxiv_meta_json_lines)):
         line = line.strip()
         if line:
-            arxiv_meta_dicts.append(json.loads(line))
+            d = json.loads(line)
+            d['topics'] = []
+            categories = d['categories'].split(' ')
+            if args.strict_topic_extraction:
+                categories = [c for c in categories if c not in ['adap-org', 'chao-dyn', 'patt-sol']] # There are more that are not listed in https://arxiv.org/category_taxonomy
+            for cate in categories:
+                for prefix, topic in prefix_to_topic.items():
+                    if cate.startswith((prefix + ".") if '.' in cate else prefix):
+                        d['topics'].append(topic)
+                        break
+            if args.strict_topic_extraction and len(categories) != len(d['topics']):
+                print(f"{categories=} {d['topics']=}")
+                breakpoint()
+            if args.verbose:
+                print(f"[{iline+1}/{len(arxiv_meta_json_lines)}] Topics: {d['topics']}; Categories: {d['categories']}")
+            d['topics'] = json.dumps(d['topics'])
+            arxiv_meta_dicts.append(d)
     arxiv_meta_df = pd.DataFrame(arxiv_meta_dicts)
     arxiv_meta_df['filename'] = arxiv_meta_df['id'].str.replace('/', ' ') + ".pdf"
 
@@ -224,7 +298,7 @@ def create_docs_metadata_csv():
     output_path = Path(args.output_path)
     print("Saving output CSV to: {}".format(output_path))
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    arxiv_meta_df.to_csv(output_path)
+    arxiv_meta_df.to_csv(output_path, index=False)
     print("Done")
 
 

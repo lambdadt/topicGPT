@@ -1,3 +1,41 @@
+# Fork of TopicGPT for querying topics using VLM
+## Installation
+```sh
+# Using Python 3.11
+pip install -r requirements.txt
+```
+
+## Operations
+### Generate metadata CSV
+Assuming you have the sampled arXiv PDFs downloaded in (see <https://github.com/lambdadt/DocImageAnalysis>) `data_pdfs/pdfs` and the JSONL file downloaded from [Kaggle](https://www.kaggle.com/datasets/Cornell-University/arxiv), you must first create a CSV which contains information about each PDF (e.g., title, categories, topics).
+
+```sh
+# Use `-h` option to see parameters.
+python -m program create_docs_metadata_csv
+```
+Output saved at: `data_pdfs/docs_metadata.csv` (default).
+
+### Create arXiv topic file
+This file is used to build the topic tree used by TopicGPT (ref: `data/output/sample/generation_1.md`, `data/output/sample/generation_2.md`).
+
+```sh
+# Use `-h` option to see parameters.
+python -m program generate_arxiv_topic_file
+```
+Output saved at: `output/generation_arxiv_1.md` (default).
+
+### Generate Topics
+Generate topics using VLM (using document image(s)) as input or LLM (like TopicGPT).
+See all options using `-h` option.
+
+```sh
+python -m assign_topics -o output/topic_assignments/vlm_2 \
+    --method vlm --page_selection_criterion random --num_pages 2 \
+    --shuffle_topics \
+```
+
+------
+
 # TopicGPT
 [![arXiV](https://img.shields.io/badge/arxiv-link-red)](https://arxiv.org/abs/2311.01449) [![Website](https://img.shields.io/badge/website-link-purple)](https://chtmp223.github.io/topicGPT) 
 

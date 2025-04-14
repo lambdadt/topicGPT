@@ -9,6 +9,7 @@ import subprocess
 from typing import Optional, List
 from io import BytesIO
 import base64
+import random
 
 from openai import OpenAI, AzureOpenAI
 import tiktoken
@@ -438,13 +439,14 @@ class TopicTree:
             return f"[{node.lvl}] {node.name} (Count: {node.count}): {node.desc}"
 
     @staticmethod
-    def from_topic_list(topic_src, from_file=False):
+    def from_topic_list(topic_src, from_file=False, shuffle_lines=False):
         """
         Construct a TopicTree from a list of topic strings or a file.
 
         Parameters:
         - topic_src: List of topic strings or path to a file
         - from_file: Flag to indicate if the source is a file
+        - shuffle_lines: shuffle lines in the file. Only use this option if there is only one level for the entire topic set.
 
         Returns:
         - tree: Constructed TopicTree
@@ -452,6 +454,8 @@ class TopicTree:
         tree = TopicTree()
         topic_list = open(topic_src, "r").readlines() if from_file else topic_src
         topic_list = [topic for topic in topic_list if len(topic.strip()) > 0]
+        if shuffle_lines:
+            random.shuffle(topic_list)
         pattern = regex.compile(r"^\[(\d+)\] (.+) \(Count: (\d+)\)\s?:(.+)?")
 
         for topic in topic_list:

@@ -12,7 +12,7 @@ topics:
     prefixes: ["math"]
     description: Spans pure and applied mathematics, including algebra, geometry, analysis, number theory, and mathematical physics.
   - name: Physics
-    prefixes: ["astro-ph", "cond-mat", "gr-qc", "hep-ex", "hep-lat", "hep-ph", "hep-th", "math-ph", "nlin.AO", "nucl-ex", "nucl-th", "physics", "quant-ph"]
+    prefixes: ["astro-ph", "cond-mat", "gr-qc", "hep-ex", "hep-lat", "hep-ph", "hep-th", "math-ph", "nlin", "nucl-ex", "nucl-th", "physics", "quant-ph", "acc-phys"]
     description: Includes subfields like astrophysics, condensed matter, high-energy physics, and quantum mechanics, with both theoretical and experimental research.
   - name: Quantitative Biology
     prefixes: ["q-bio"]
