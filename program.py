@@ -113,10 +113,10 @@ def assign_topics():
             if page_selection_criterion == 'first':
                 pages = [0]
             elif page_selection_criterion == 'random':
-                if max_page <= n_pages_sel - 1:
-                    pages = random.choices(list(range(0, max_page+1)), k=n_pages_sel)
-                else:
+                if n_pages_sel <= max_page + 1:
                     pages = random.sample(list(range(0, max_page+1)), k=n_pages_sel)
+                else:
+                    pages = random.choices(list(range(0, max_page+1)), k=n_pages_sel)
             else:
                 raise ValueError("Unknown page selection criterion: {}".format(page_selection_criterion))
             print("Selected pages: {} (max page: {} ({:.02f}%) out of {} pages)".format([p+1 for p in pages], max_page+1, max_page_pct, n_pages))
@@ -241,6 +241,7 @@ def create_docs_metadata_csv():
     ap.add_argument('--kaggle_jsonl_path', default="data_pdfs/arxiv-metadata-oai-snapshot.json", help="From Kaggle arXiv dataset: https://www.kaggle.com/datasets/Cornell-University/arxiv")
     ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
     ap.add_argument('--output_path', default="data_pdfs/docs_metadata.csv", help=".")
+    ap.add_argument('--sample', type=int, default=-1, help="If set to value greater than 0, random documents will be sampled for that amount instead of using the entire collection.")
     ap.add_argument('--strict_topic_extraction', action='store_true')
     ap.add_argument('--verbose', action='store_true')
     args = ap.parse_args()
@@ -258,6 +259,11 @@ def create_docs_metadata_csv():
     for fn in tqdm(os.listdir(args.sampled_pdfs_dir)):
         if os.path.splitext(fn)[1].lower() == ".pdf":
             sampled_pdfs.add(fn)
+    
+    if args.sample > 0:
+        print("Randomly sampling {} documents out of {}.".format(args.sample, len(sampled_pdfs)))
+        sampled_pdfs = random.sample(sorted(sampled_pdfs), k=args.sample)
+        sampled_pdfs = set(sampled_pdfs)
 
     print("Reading arXiv JSONL from: {}".format(args.kaggle_jsonl_path))
     with open(args.kaggle_jsonl_path, encoding='utf-8') as f:

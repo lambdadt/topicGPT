@@ -8,12 +8,14 @@ pip install -r requirements.txt
 ## Operations
 ### Generate metadata CSV
 Assuming you have the sampled arXiv PDFs downloaded in (see <https://github.com/lambdadt/DocImageAnalysis>) `data_pdfs/pdfs` and the JSONL file downloaded from [Kaggle](https://www.kaggle.com/datasets/Cornell-University/arxiv), you must first create a CSV which contains information about each PDF (e.g., title, categories, topics).
+This metadata CSV will be used for topic assignment.
 
 ```sh
 # Use `-h` option to see parameters.
-python -m program create_docs_metadata_csv
+python -m program create_docs_metadata_csv --output_path data_pdfs/docs_metadata.csv
 ```
 Output saved at: `data_pdfs/docs_metadata.csv` (default).
+You also can choose to randomly sample `--sample` number of documents to consider for the metadata CSV.
 
 ### Create arXiv topic file
 This file is used to build the topic tree used by TopicGPT (ref: `data/output/sample/generation_1.md`, `data/output/sample/generation_2.md`).
@@ -30,6 +32,7 @@ See all options using `-h` option.
 
 ```sh
 python -m assign_topics -o output/topic_assignments/vlm_2 \
+    --docs_metadata_csv data_pdfs/docs_metadata.csv \
     --method vlm --page_selection_criterion random --num_pages 2 \
     --shuffle_topics \
 ```

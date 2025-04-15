@@ -63,7 +63,7 @@ class APIClient:
                 self.model_obj = genai.GenerativeModel(self.model)
         elif api == "ollama": 
             self.client = OpenAI(
-                base_url = 'http://localhost:11434/v1',
+                base_url = "http://{}/v1".format(os.getenv('OLLAMA_HOST', "localhost:11434")),
                 api_key='ollama', # required, but unused
             )
         elif api == "vllm":
