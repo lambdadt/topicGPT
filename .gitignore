@@ -148,3 +148,7 @@ static
 topic-gpt/tests/*
 
 test.ipynb
+
+/output/
+logs/
+pace/Report_*

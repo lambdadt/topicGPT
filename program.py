@@ -81,9 +81,9 @@ def assign_topics():
     individual_results_save_dir.mkdir(exist_ok=True, parents=True)
 
     if method == 'vlm':
-        prompt_path = Path("prompt/assignment_img_no_examples.txt")
+        prompt_path = Path(Path(__file__).parent, "prompt/assignment_img_no_examples.txt")
     elif method == 'llm':
-        prompt_path = Path("prompt/assignment_no_examples.txt")
+        prompt_path = Path(Path(__file__).parent, "prompt/assignment_no_examples.txt")
     else:
         raise ValueError("Unknown method: {}".format(method))
     print("Loading assignment prompt from: {}".format(prompt_path))
@@ -191,11 +191,11 @@ def assign_topics():
     all_results_save_path = output_dir / "all_results.json"
     err_results_save_path = output_dir / "failed_results.json"
     print("Saving results (#={}) to: {}".format(len(all_results), all_results_save_path))
-    with open(all_results_save_path, 'w', encoding='utf-8'):
-        json.dump(all_results, ensure_ascii=False, indent=2)
+    with open(all_results_save_path, 'w', encoding='utf-8') as f:
+        json.dump(all_results, f, ensure_ascii=False, indent=2)
     print("Saving err results (#={}) to: {}".format(len(err_results), err_results_save_path))
     with open(err_results_save_path, 'w', encoding='utf-8') as f:
-        json.dump(err_results, ensure_ascii=False, indent=2)
+        json.dump(err_results, f, ensure_ascii=False, indent=2)
     print("Done")
 
 
