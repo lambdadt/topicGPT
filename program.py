@@ -6,6 +6,7 @@ import json
 import random
 import traceback
 import re
+from bdb import BdbQuit
 
 import yaml
 import pandas as pd
@@ -136,7 +137,9 @@ def assign_topics():
                     #pg_pil.save(output_dir / f"{doc_path.stem}_{pg}.jpg")
                     images.append(pg_pil)
                 elif method == 'llm':
-                    raise NotImplementedError("Method 'llm' not implemented")
+                    textpage = pdf_obj[pg].get_textpage()
+                    text_all = textpage.get_text_bounded()
+                    doc = text_all if not doc else (doc + "\n\n" + text_all)
                 else:
                     raise ValueError("Unknown method: {}".format(method))
             print("Assigning topic(s)...")
@@ -175,8 +178,8 @@ def assign_topics():
                 json.dump(res, f, ensure_ascii=False, indent=2)
             print("Saved results to: {}".format(res_save_path))
             all_results.append(res)
-        except KeyboardInterrupt:
-            raise
+        except (KeyboardInterrupt, BdbQuit):
+            exit(1)
         except Exception as e:
             err_d = {
                 **row.to_dict(),
