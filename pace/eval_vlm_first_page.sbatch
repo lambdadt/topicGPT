@@ -2,8 +2,8 @@
 #SBATCH -J eval_vlm_first_page    # Job name
 #SBATCH --account=coc             # Account
 #SBATCH --cpus-per-task=12        # Use 12 cores
-#SBATCH --nodes=1 --ntasks-per-node=4 --gres=gpu
-#SBATCH --mem=100G
+#SBATCH --nodes=1 --ntasks-per-node=2 --gres=gpu  # or --gres=gpu:h100:1 if nvidia-smi fails
+#SBATCH --mem=32G
 #SBATCH -t 8:00:00                # Time limit (8 hours, adjust after testing)
 #SBATCH -q coe-ice                # Partition
 #SBATCH -o Report_eval_vlm_first_page-%j.out          # Output file
@@ -48,5 +48,6 @@ time python program.py assign_topics \
     --arxiv_topic_file "output/generation_arxiv_1.md" \
     --method "$METHOD" \
     --page_selection_criterion "$PAGE_SELECTION" \
-    --num_pages $NUM_PAGES
+    --num_pages $NUM_PAGES \
+    --verbose \
     2>&1 | sed 's/\r/\n/g' | tee "logs/${DATESTR}_pace_eval_vlm_first_page-$SLURM_JOB_ID.out"

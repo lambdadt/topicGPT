@@ -48,6 +48,8 @@ def assign_topics():
     output_dir = Path(args.output_directory)
     output_dir.mkdir(exist_ok=True, parents=True)
 
+    print("Output directory: {}".format(output_dir))
+
     print("Opening docs metadata from: {}".format(args.docs_metadata_csv))
     docs_meta_df = pd.read_csv(args.docs_metadata_csv)
     print("# documents: {}".format(len(docs_meta_df)))
@@ -80,6 +82,9 @@ def assign_topics():
 
     individual_results_save_dir = output_dir / "result_jsons"
     individual_results_save_dir.mkdir(exist_ok=True, parents=True)
+
+    print(f"Method: {method}; temperature: {temperature}; top_p: {top_p}; "
+          f"context: {context}; max_tokens: {max_tokens}; context_len: {context_len}; shuffle_topics: {shuffle_topics}")
 
     if method == 'vlm':
         prompt_path = Path(Path(__file__).parent, "prompt/assignment_img_no_examples.txt")
