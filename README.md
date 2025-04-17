@@ -29,9 +29,10 @@ Output saved at: `output/generation_arxiv_1.md` (default).
 ### Generate Topics
 Generate topics using VLM (using document image(s)) as input or LLM (like TopicGPT).
 See all options using `-h` option.
+Methods available: vlm, llm, bertopic
 
 ```sh
-python -m assign_topics -o output/topic_assignments/vlm_2 \
+python -m program assign_topics -o output/topic_assignments/vlm_2 \
     --docs_metadata_csv data_pdfs/docs_metadata.csv \
     --method vlm --page_selection_criterion random --num_pages 2 \
     --shuffle_topics \

@@ -18,3 +18,4 @@ google-generativeai
 
 pypdfium2 >= 4.30.1
 matplotlib >= 3.10.0
+bertopic >= 0.17.0

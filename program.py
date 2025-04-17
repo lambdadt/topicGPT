@@ -14,6 +14,8 @@ from tqdm import tqdm
 import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
 
+from bertopic import BERTopic
+
 from topicgpt_python.utils import APIClient, TopicTree
 import topicgpt_python.assignment
 
@@ -23,7 +25,7 @@ def assign_topics():
     ap.add_argument('--docs_metadata_csv', default="data_pdfs/docs_metadata.csv", help=".")
     ap.add_argument('--arxiv_topic_file', default="output/generation_arxiv_1.md", help=".")
     ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
-    ap.add_argument('--method', choices=['vlm', 'llm'], default='vlm', help=".")
+    ap.add_argument('--method', choices=['vlm', 'llm', 'bertopic'], default='vlm', help=".")
     ap.add_argument('--output_directory', '-o', required=True, help=".")
     ap.add_argument('--backend', choices=['ollama', 'openai'], default='ollama', help=".")
     ap.add_argument('--model', default='llama3.2-vision', help=".")
@@ -86,16 +88,22 @@ def assign_topics():
     print(f"Method: {method}; temperature: {temperature}; top_p: {top_p}; "
           f"context: {context}; max_tokens: {max_tokens}; context_len: {context_len}; shuffle_topics: {shuffle_topics}")
 
+    prompt_path = None
+    assignment_prompt = None
     if method == 'vlm':
         prompt_path = Path(Path(__file__).parent, "prompt/assignment_img_no_examples.txt")
     elif method == 'llm':
         prompt_path = Path(Path(__file__).parent, "prompt/assignment_no_examples.txt")
+    elif method == 'bertopic':
+        pass
     else:
         raise ValueError("Unknown method: {}".format(method))
-    print("Loading assignment prompt from: {}".format(prompt_path))
-    with open(prompt_path, encoding='utf-8') as f:
-        assignment_prompt = f.read()
-    print("Assignment prompt:\n{}".format(assignment_prompt))
+    
+    if prompt_path is not None:
+        print("Loading assignment prompt from: {}".format(prompt_path))
+        with open(prompt_path, encoding='utf-8') as f:
+            assignment_prompt = f.read()
+        print("Assignment prompt:\n{}".format(assignment_prompt))
 
     continue_from_idx = max(0, args.continue_from_index - 1)
     print("Continuing from index: {} (/{})".format(continue_from_idx + 1, len(docs_meta_df)))
@@ -125,7 +133,7 @@ def assign_topics():
                     pages = random.choices(list(range(0, max_page+1)), k=n_pages_sel)
             else:
                 raise ValueError("Unknown page selection criterion: {}".format(page_selection_criterion))
-            print("Selected pages: {} (max page: {} ({:.02f}%) out of {} pages)".format([p+1 for p in pages], max_page+1, max_page_pct, n_pages))
+            print("Selected page(s): {} (max page: {} ({:.02f}%) out of {} pages)".format([p+1 for p in pages], max_page+1, max_page_pct, n_pages))
 
             doc = None
             images = []
@@ -141,47 +149,56 @@ def assign_topics():
                     pg_pil = bitmap.to_pil().convert('RGB')
                     #pg_pil.save(output_dir / f"{doc_path.stem}_{pg}.jpg")
                     images.append(pg_pil)
-                elif method == 'llm':
+                elif method == 'llm' or method == 'bertopic':
                     textpage = pdf_obj[pg].get_textpage()
                     text_all = textpage.get_text_bounded()
                     doc = text_all if not doc else (doc + "\n\n" + text_all)
                 else:
                     raise ValueError("Unknown method: {}".format(method))
-            print("Assigning topic(s)...")
-            responses, prompted_docs, cur_prompts = topicgpt_python.assignment.assignment(
-                api_client=api_client,
-                topics_root=topic_root,
-                docs=[doc],
-                assignment_prompt=assignment_prompt,
-                context_len=context_len,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                verbose=verbose,
-                images=[images],
-                list_all_topic_candidates=True,
-                return_prompts=True,
-            )
-            response = responses[0]
-            cur_prompt = cur_prompts[0]
-            if verbose:
-                print(f"Response: {response}")
-            # Find topic assignments from response
-            matched_topics = []
-            for topic_name in topic_names:
-                matches = re.findall(f"\\b{topic_name}\\b", response)
-                if matches:
-                    matched_topics.append(topic_name)
-            print("Matched topics (#={}): {}".format(len(matched_topics), matched_topics))
+            if method == 'vlm' or method == 'llm':
+                print("Assigning topic(s)...")
+                responses, prompted_docs, cur_prompts = topicgpt_python.assignment.assignment(
+                    api_client=api_client,
+                    topics_root=topic_root,
+                    docs=[doc],
+                    assignment_prompt=assignment_prompt,
+                    context_len=context_len,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                    verbose=verbose,
+                    images=[images],
+                    list_all_topic_candidates=True,
+                    return_prompts=True,
+                )
+                response = responses[0]
+                cur_prompt = cur_prompts[0]
+                if verbose:
+                    print(f"Response: {response}")
+                # Find topic assignments from response
+                matched_topics = []
+                for topic_name in topic_names:
+                    matches = re.findall(f"\\b{topic_name}\\b", response)
+                    if matches:
+                        matched_topics.append(topic_name)
+                print("Matched topics (#={}): {}".format(len(matched_topics), matched_topics))
+            elif method == 'bertopic':
+                cur_prompt = None
+                response = None
+                matched_topics = None
+            else:
+                raise AssertionError()
             res = {
                 **row.to_dict(),
                 'prompt': cur_prompt,
                 'response': response,
                 'matched_topics': matched_topics,
+                'document_text': doc,
             }
-            with open(res_save_path, 'w', encoding='utf-8') as f:
-                json.dump(res, f, ensure_ascii=False, indent=2)
-            print("Saved results to: {}".format(res_save_path))
+            if method == 'vlm' or method == 'llm':
+                with open(res_save_path, 'w', encoding='utf-8') as f:
+                    json.dump(res, f, ensure_ascii=False, indent=2)
+                print("Saved results to: {}".format(res_save_path))
             all_results.append(res)
         except (KeyboardInterrupt, BdbQuit):
             exit(1)
@@ -196,6 +213,17 @@ def assign_topics():
             traceback.print_exc()
             print("Failed to process document: {}".format(doc_path))
             print("Skipping")
+    
+    if method == 'bertopic':
+        print("Assigning topics using BERTopic...")
+        doclist = []
+        for res in all_results:
+            doclist.append(res['document_text'])
+        bertopic_model = BERTopic()
+        bertopic_topics, bertopic_probs = bertopic_model.fit_transform(doclist)
+        for res, topic in zip(all_results, bertopic_topics):
+            res['matched_topics'] = [topic]
+
     all_results_save_path = output_dir / "all_results.json"
     err_results_save_path = output_dir / "failed_results.json"
     print("Saving results (#={}) to: {}".format(len(all_results), all_results_save_path))
