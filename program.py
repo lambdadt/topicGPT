@@ -278,6 +278,8 @@ def create_docs_metadata_csv():
     ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
     ap.add_argument('--output_path', default="data_pdfs/docs_metadata.csv", help=".")
     ap.add_argument('--sample', type=int, default=-1, help="If set to value greater than 0, random documents will be sampled for that amount instead of using the entire collection.")
+    ap.add_argument('--balanced_sampling', default='none', choices=['none', 'category', 'topic'],
+        help="Will sample a balanced number for each category (or topic; category is more fine-grained). Output may not be equal to --sample depending on amount of overlap present in topic distribution.")
     ap.add_argument('--strict_topic_extraction', action='store_true')
     ap.add_argument('--verbose', action='store_true')
     args = ap.parse_args()
@@ -296,7 +298,7 @@ def create_docs_metadata_csv():
         if os.path.splitext(fn)[1].lower() == ".pdf":
             sampled_pdfs.add(fn)
     
-    if args.sample > 0:
+    if args.sample > 0 and args.balanced_sampling == 'none':
         print("Randomly sampling {} documents out of {}.".format(args.sample, len(sampled_pdfs)))
         sampled_pdfs = random.sample(sorted(sampled_pdfs), k=args.sample)
         sampled_pdfs = set(sampled_pdfs)
@@ -336,6 +338,29 @@ def create_docs_metadata_csv():
     print("Extracted {} rows".format(len(arxiv_meta_df)))
 
     arxiv_meta_df['filepath'] = arxiv_meta_df['filename'].map(lambda fn: os.path.join(args.sampled_pdfs_dir, fn))
+
+    # Balanced sampling based on categories
+    if args.sample > 0 and args.balanced_sampling != 'none':
+        print("Sampling based on categories; target: {}".format(args.sample))
+        categories = set()
+        for d in arxiv_meta_dicts:
+            if args.balanced_sampling == 'category':
+                categories.update(d['categories'].split(' '))
+            elif args.balanced_sampling == 'topic':
+                categories.update(json.loads(d['topics']))
+            else:
+                raise ValueError()
+        print("Categories (#={}): {}".format(len(categories), categories))
+        n_sample_per_cate = round(1.5 * (args.sample / len(categories)))
+        arxiv_meta_df_sampled_list = []
+        for cate in categories:
+            mask_col = 'categories' if args.balanced_sampling == 'category' else 'topics'
+            arxiv_meta_df_cate = arxiv_meta_df[arxiv_meta_df[mask_col].str.contains(cate)]
+            sampled_indices = random.sample(list(range(len(arxiv_meta_df_cate))), k=min(len(arxiv_meta_df_cate), n_sample_per_cate))
+            arxiv_meta_df_sampled_list.append(arxiv_meta_df_cate.iloc[sampled_indices])
+        arxiv_meta_df = pd.concat(arxiv_meta_df_sampled_list, axis=0)
+        arxiv_meta_df = arxiv_meta_df.drop_duplicates(subset=['filepath'])
+        print("# entries after balanced sampling: {}".format(len(arxiv_meta_df)))
 
     output_path = Path(args.output_path)
     print("Saving output CSV to: {}".format(output_path))

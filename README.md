@@ -15,7 +15,8 @@ This metadata CSV will be used for topic assignment.
 python -m program create_docs_metadata_csv --output_path data_pdfs/docs_metadata.csv
 ```
 Output saved at: `data_pdfs/docs_metadata.csv` (default).
-You also can choose to randomly sample `--sample` number of documents to consider for the metadata CSV.
+
+You also can choose to randomly sample `--sample` number of documents to consider for the metadata CSV. If you want the documents to be sampled in a balanced manner, set `--balanced_sampling` to `topic` (coarse; e.g., "Computer Science") or `category` (fine-grained; e.g., "cs-DL"). Note that if you set `--balanced_sampling` output number of document may not exactly equal `--sample`.
 
 ### Create arXiv topic file
 This file is used to build the topic tree used by TopicGPT (ref: `data/output/sample/generation_1.md`, `data/output/sample/generation_2.md`).
