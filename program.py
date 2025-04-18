@@ -152,7 +152,8 @@ def assign_topics():
                 elif method == 'llm' or method == 'bertopic':
                     textpage = pdf_obj[pg].get_textpage()
                     text_all = textpage.get_text_bounded()
-                    doc = text_all if not doc else (doc + "\n\n" + text_all)
+                    doc = text_all if not doc else \
+                        (doc + "\n\n" + 75 * "=" + "\n\n" + text_all)
                 else:
                     raise ValueError("Unknown method: {}".format(method))
             if method == 'vlm' or method == 'llm':

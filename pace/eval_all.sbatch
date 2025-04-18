@@ -43,7 +43,7 @@ echo "Start running script"
 cd ${ROOT_FOLDER}
 mkdir -p logs
 
-echo "BERTopic - first page"
+echo "BERTopic; first page"
 DATESTR=$(date '+%Y%m%dT%H%M%S')
 time python program.py assign_topics \
     -o "${OUTPUT}/bertopic_first_page" \
@@ -54,7 +54,35 @@ time python program.py assign_topics \
     --page_selection_criterion first \
     --num_pages 1 \
     --verbose \
-    2>&1 | sed 's/\r/\n/g' | tee "logs/${DATESTR}_pace_eval_bertopic_firstpage-$SLURM_JOB_ID.out"
+    2>&1 | sed 's/\r/\n/g' | tee "logs/${DATESTR}_pace_eval_bertopic_first_page-$SLURM_JOB_ID.out"
+
+echo "BERTopic; random page"
+DATESTR=$(date '+%Y%m%dT%H%M%S')
+time python program.py assign_topics \
+    -o "${OUTPUT}/bertopic_random_page" \
+    --docs_metadata_csv "${DOCS_METADATA}" \
+    --arxiv_topics_yaml "${ARXIV_TOPICS_YAML}" \
+    --arxiv_topic_file "${ARXIV_TOPIC_FILE}" \
+    --method "bertopic" \
+    --page_selection_criterion random \
+    --num_pages 1 \
+    --verbose \
+    2>&1 | sed 's/\r/\n/g' | tee "logs/${DATESTR}_pace_eval_bertopic_random_page-$SLURM_JOB_ID.out"
+
+echo "BERTopic; 2 random pages"
+DATESTR=$(date '+%Y%m%dT%H%M%S')
+time python program.py assign_topics \
+    -o "${OUTPUT}/bertopic_2_random_pages" \
+    --docs_metadata_csv "${DOCS_METADATA}" \
+    --arxiv_topics_yaml "${ARXIV_TOPICS_YAML}" \
+    --arxiv_topic_file "${ARXIV_TOPIC_FILE}" \
+    --method "bertopic" \
+    --page_selection_criterion random \
+    --num_pages 2 \
+    --verbose \
+    2>&1 | sed 's/\r/\n/g' | tee "logs/${DATESTR}_pace_eval_bertopic_2_random_pages-$SLURM_JOB_ID.out"
+
+exit
 
 echo "VLM; first page"
 DATESTR=$(date '+%Y%m%dT%H%M%S')
