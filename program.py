@@ -194,6 +194,7 @@ def assign_topics():
                 'response': response,
                 'matched_topics': matched_topics,
                 'document_text': doc,
+                'pages': pages,
             }
             if method == 'vlm' or method == 'llm':
                 with open(res_save_path, 'w', encoding='utf-8') as f:
