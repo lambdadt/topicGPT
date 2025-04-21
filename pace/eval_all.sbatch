@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=12        # Use 12 cores
 #SBATCH --nodes=1 --ntasks-per-node=2 --gres=gpu  # or --gres=gpu:h100:1 if nvidia-smi fails
 #SBATCH --mem=32G
-#SBATCH -t 8:00:00                # Time limit (8 hours, adjust after testing)
+#SBATCH -t 16:00:00                # Time limit (8 hours, adjust after testing)
 #SBATCH -q coe-ice                # Partition
 #SBATCH -o Report_eval_all-%j.out          # Output file
 #SBATCH --mail-type=BEGIN,END,FAIL # Email notifications
