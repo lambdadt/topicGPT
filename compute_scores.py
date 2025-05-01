@@ -44,6 +44,21 @@ print(f"{topic_names=}")
 
 assig_base_dir = Path("output/topic_assignments/20250417T203941/")
 assig_outputs_all = {
+    'tfidf_title': {
+        'path': assig_base_dir / "tfidf_title/all_results.json"
+    },
+    'tfidf_abstract': {
+        'path': assig_base_dir / "tfidf_abstract/all_results.json"
+    },
+    'lda_title': {
+        'path': assig_base_dir / "lda_title/all_results.json"
+    },
+    'lda_abstract': {
+        'path': assig_base_dir / "lda_abstract/all_results.json"
+    },
+    'bertopic_abstract': {
+        'path': assig_base_dir / "bertopic_abstract/all_results.json"
+    },
     'bertopic_first_page': {
         'path': assig_base_dir / "bertopic_first_page/all_results.json"
     },
@@ -53,26 +68,27 @@ assig_outputs_all = {
     'bertopic_2_random_pages': {
         'path': assig_base_dir / "bertopic_2_random_pages/all_results.json"
     },
-    'vlm_first_page': {
-        'path': assig_base_dir / "vlm_first_page/all_results.json",
-    },
-    'vlm_random_page': {
-        'path': assig_base_dir / "vlm_random_page/all_results.json",
-    },
-    'vlm_2_random_pages': {
-        'path': assig_base_dir / "vlm_2_random_pages/all_results.json",
-    },
+    #'vlm_first_page': {
+    #    'path': assig_base_dir / "vlm_first_page/all_results.json",
+    #},
+    #'vlm_random_page': {
+    #    'path': assig_base_dir / "vlm_random_page/all_results.json",
+    #},
+    #'vlm_2_random_pages': {
+    #    'path': assig_base_dir / "vlm_2_random_pages/all_results.json",
+    #},
     
-    'llm_first_page': {
-        'path': assig_base_dir / "llm_first_page/all_results.json",
-    },
-    'llm_random_page': {
-        'path': assig_base_dir / "llm_random_page/all_results.json",
-    },
-    'llm_2_random_pages': {
-        'path': assig_base_dir / "llm_2_random_pages/all_results.json",
-    },
+    #'llm_first_page': {
+    #    'path': assig_base_dir / "llm_first_page/all_results.json",
+    #},
+    #'llm_random_page': {
+    #    'path': assig_base_dir / "llm_random_page/all_results.json",
+    #},
+    #'llm_2_random_pages': {
+    #    'path': assig_base_dir / "llm_2_random_pages/all_results.json",
+    #},
 }
+
 for k, assig_d in assig_outputs_all.items():
     assert os.path.isfile(assig_d['path']), "Invalid path: {}".format(assig_d['path'])
 
@@ -106,7 +122,7 @@ for imodel, (model_name, assig_output_d) in enumerate(assig_outputs_all.items())
     curmodel_assig_datas_fordf = []
     true_topics_unique = set()
     pred_topics_unique = set()
-    gt_pred_topic_names_match = "bertopic" not in model_name.lower()
+    gt_pred_topic_names_match = 'llm' in model_name.lower() or 'vlm' in model_name.lower() #"bertopic" not in model_name.lower()
     for idoc, assig_d in enumerate(tqdm(assig_datas)):
         true_topics = json.loads(assig_d['topics'])
         llm_response = assig_d.get('response', None)
@@ -191,4 +207,4 @@ print(f"Result dataframe:\n{results_allmodels_df}")
 clustering_results_output_path = Path(output_dir / "clustering_scores.csv")
 
 print(f"Saving output to: {clustering_results_output_path }")
-results_allmodels_df.to_csv(clustering_results_output_path, index=False)
+results_allmodels_df.to_csv(clustering_results_output_path, index=True)

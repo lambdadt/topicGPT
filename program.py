@@ -13,6 +13,9 @@ import pandas as pd
 from tqdm import tqdm
 import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from sklearn.decomposition import LatentDirichletAllocation
 
 from bertopic import BERTopic
 
@@ -25,11 +28,11 @@ def assign_topics():
     ap.add_argument('--docs_metadata_csv', default="data_pdfs/docs_metadata.csv", help=".")
     ap.add_argument('--arxiv_topic_file', default="output/generation_arxiv_1.md", help=".")
     ap.add_argument('--arxiv_topics_yaml', default="data/misc/arxiv_topics.yaml", help=".")
-    ap.add_argument('--method', choices=['vlm', 'llm', 'bertopic'], default='vlm', help=".")
+    ap.add_argument('--method', choices=['vlm', 'llm', 'bertopic', 'tfidf', 'lda'], default='vlm', help=".")
     ap.add_argument('--output_directory', '-o', required=True, help=".")
     ap.add_argument('--backend', choices=['ollama', 'openai'], default='ollama', help=".")
     ap.add_argument('--model', default='llama3.2-vision', help=".")
-    ap.add_argument('--page_selection_criterion', choices=['first', 'random'], default='first', help="If set to random, num_pages is ignored.")
+    ap.add_argument('--page_selection_criterion', choices=['first', 'random', 'title', 'abstract'], default='first', help="If set to random, num_pages is ignored.")
     ap.add_argument('--num_pages', type=int, default=1,
         help="# pages to select")
     ap.add_argument('--max_page_percentage', default=80,
@@ -94,7 +97,7 @@ def assign_topics():
         prompt_path = Path(Path(__file__).parent, "prompt/assignment_img_no_examples.txt")
     elif method == 'llm':
         prompt_path = Path(Path(__file__).parent, "prompt/assignment_no_examples.txt")
-    elif method == 'bertopic':
+    elif method in ('bertopic', 'tfidf', 'lda'):
         pass
     else:
         raise ValueError("Unknown method: {}".format(method))
@@ -124,38 +127,48 @@ def assign_topics():
             pdf_obj = pdfium.PdfDocument(str(doc_path))
             n_pages = len(pdf_obj)
             max_page = min(n_pages - 1, round((max_page_pct / 100) * n_pages - 1))
+            pages = []
             if page_selection_criterion == 'first':
                 pages = [0]
-            elif page_selection_criterion == 'random':
+            elif page_selection_criterion == 'random': # TODO random seed to ensure same page selections across different experiments? (e.g., llm and vlm)
                 if n_pages_sel <= max_page + 1:
                     pages = random.sample(list(range(0, max_page+1)), k=n_pages_sel)
                 else:
                     pages = random.choices(list(range(0, max_page+1)), k=n_pages_sel)
-            else:
-                raise ValueError("Unknown page selection criterion: {}".format(page_selection_criterion))
             print("Selected page(s): {} (max page: {} ({:.02f}%) out of {} pages)".format([p+1 for p in pages], max_page+1, max_page_pct, n_pages))
 
+            # Get text/image
             doc = None
             images = []
-            for pg in pages:
-                if method == 'vlm':
-                    # https://github.com/pypdfium2-team/pypdfium2?tab=readme-ov-file#usage
-                    bitmap = pdf_obj[pg].render(
-                        scale = 1,    # 72dpi resolution
-                        rotation = 0,
-                        force_bitmap_format=pdfium_c.FPDFBitmap_BGRA,
-                        rev_byteorder=True,
-                    )
-                    pg_pil = bitmap.to_pil().convert('RGB')
-                    #pg_pil.save(output_dir / f"{doc_path.stem}_{pg}.jpg")
-                    images.append(pg_pil)
-                elif method == 'llm' or method == 'bertopic':
-                    textpage = pdf_obj[pg].get_textpage()
-                    text_all = textpage.get_text_bounded()
-                    doc = text_all if not doc else \
-                        (doc + "\n\n" + 75 * "=" + "\n\n" + text_all)
+            if pages:
+                for pg in pages:
+                    if method == 'vlm':
+                        # https://github.com/pypdfium2-team/pypdfium2?tab=readme-ov-file#usage
+                        bitmap = pdf_obj[pg].render(
+                            scale = 1,    # 72dpi resolution
+                            rotation = 0,
+                            force_bitmap_format=pdfium_c.FPDFBitmap_BGRA,
+                            rev_byteorder=True,
+                        )
+                        pg_pil = bitmap.to_pil().convert('RGB')
+                        #pg_pil.save(output_dir / f"{doc_path.stem}_{pg}.jpg")
+                        images.append(pg_pil)
+                    elif method == 'llm' or method == 'bertopic':
+                        textpage = pdf_obj[pg].get_textpage()
+                        text_all = textpage.get_text_bounded()
+                        doc = text_all if not doc else \
+                            (doc + "\n\n" + 75 * "=" + "\n\n" + text_all)
+                    else:
+                        raise ValueError("Unknown method: {}".format(method))
+            else:
+                if page_selection_criterion == 'title':
+                    doc = row['title']
+                elif page_selection_criterion == 'abstract':
+                    doc = row['abstract']
                 else:
-                    raise ValueError("Unknown method: {}".format(method))
+                    raise ValueError("No pages selected; page selection criterion: {}".format(page_selection_criterion))
+            
+            # Assign
             if method == 'vlm' or method == 'llm':
                 print("Assigning topic(s)...")
                 responses, prompted_docs, cur_prompts = topicgpt_python.assignment.assignment(
@@ -183,12 +196,10 @@ def assign_topics():
                     if matches:
                         matched_topics.append(topic_name)
                 print("Matched topics (#={}): {}".format(len(matched_topics), matched_topics))
-            elif method == 'bertopic':
+            else:
                 cur_prompt = None
                 response = None
                 matched_topics = None
-            else:
-                raise AssertionError()
             res = {
                 **row.to_dict(),
                 'prompt': cur_prompt,
@@ -216,15 +227,35 @@ def assign_topics():
             print("Failed to process document: {}".format(doc_path))
             print("Skipping")
     
+    doclist = []
+    for res in all_results:
+        doclist.append(res['document_text'])
+
     if method == 'bertopic':
         print("Assigning topics using BERTopic...")
-        doclist = []
-        for res in all_results:
-            doclist.append(res['document_text'])
         bertopic_model = BERTopic()
         bertopic_topics, bertopic_probs = bertopic_model.fit_transform(doclist)
         for res, topic in zip(all_results, bertopic_topics):
             res['matched_topics'] = [topic]
+    elif method in ('tfidf', 'lda'):
+        vectorizer = TfidfVectorizer(stop_words='english')
+        X = vectorizer.fit_transform(doclist)
+        if method == 'tfidf':
+            kmeans = KMeans(n_clusters=len(topic_names))
+            kmeans.fit(X)
+            predicted_clusters = kmeans.labels_
+            assert len(predicted_clusters) == len(all_results)
+            for res, c in zip(all_results, predicted_clusters):
+                res['matched_topics'] = [int(c)]
+        elif method == 'lda':
+            lda = LatentDirichletAllocation(n_components=len(topic_names))
+            doc_topics_distrs = lda.fit_transform(X)
+            predicted_clusters = doc_topics_distrs.argmax(axis=1)
+            assert len(predicted_clusters) == len(all_results)
+            for res, c in zip(all_results, predicted_clusters):
+                res['matched_topics'] = [int(c)]
+        else:
+            raise AssertionError()
 
     all_results_save_path = output_dir / "all_results.json"
     err_results_save_path = output_dir / "failed_results.json"
